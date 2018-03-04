@@ -8,6 +8,7 @@ if(!port){
   process.exit(1)
 }
 
+let sessions={};
 var server = http.createServer(function(request, response){
   var parsedUrl = url.parse(request.url, true)
   var path = request.url 
@@ -22,12 +23,13 @@ var server = http.createServer(function(request, response){
 
 if(path === '/'){
   let string = fs.readFileSync('./index.html','utf8')
-  var users = fs.readFileSync("./db/users")
+  var users = fs.readFileSync("./db/users",'utf8')
   try {
     users =JSON.parse(users)
   } catch (error) {
     users =[];
   }
+
   try {
     var cookies =request.headers.cookie.split('; ')
   } catch (error) {
@@ -42,9 +44,18 @@ if(path === '/'){
     hash[key]=value
   }
 
+  var  email
+  if (sessions[hash.sessionId]){
+    email = sessions[hash.sessionId].sign_in_email
+  }else{
+    email = ''
+  }
+  
+
+
   let foundUser
   for(let i=0; i<users.length; i++){
-    if(users[i].email === hash['sign_in_email']){
+    if(users[i].email === email){
       foundUser=users[i]
       break;
     }
@@ -95,7 +106,7 @@ if(path === '/'){
       response.statusCode=400
       response.write('password not match')
     }else{
-      var users = fs.readFileSync("./db/users")
+      var users = fs.readFileSync("./db/users",'utf8')
       try {
         users =JSON.parse(users)
       } catch (error) {
@@ -163,7 +174,7 @@ else if(path === '/sign_in' && method==='POST'){
         }
       }`)
     }else{
-      var users = fs.readFileSync("./db/users")
+      var users = fs.readFileSync("./db/users",'utf8')
       try {
         users =JSON.parse(users)
       } catch (error) {
@@ -177,7 +188,9 @@ else if(path === '/sign_in' && method==='POST'){
           console.log("登录成功")
           response.setHeader('Content-Type','application/html;charset=utf8')
           // Set-Cookie: <cookie-name>=<cookie-value>
-          response.setHeader('Set-Cookie',`sign_in_email=${email}`)
+          let sessionId= Math.random()*100000
+          sessions[sessionId]={'sign_in_email':email}
+          response.setHeader('Set-Cookie',`sessionId=${sessionId}`)
           response.write(`您好，你已登录成功`)
           found='yes'
           break;
@@ -220,7 +233,7 @@ else if (path === '/main.js'){
   response.write(string)
   response.end()
 }else if(path === '/vendor/jquery.min.js'){
-  let string = fs.readFileSync('./vendor/jquery.min.js')
+  let string = fs.readFileSync('./vendor/jquery.min.js','utf8')
   response.statusCode=200
   response.setHeader('Content-Type','text/javascript;charset=utf-8')
   response.write(string)
