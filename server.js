@@ -22,6 +22,42 @@ var server = http.createServer(function(request, response){
 
 if(path === '/'){
   let string = fs.readFileSync('./index.html','utf8')
+  var users = fs.readFileSync("./db/users")
+  try {
+    users =JSON.parse(users)
+  } catch (error) {
+    users =[];
+  }
+  try {
+    var cookies =request.headers.cookie.split('; ')
+  } catch (error) {
+    cookies=''
+  }
+  
+  let hash={}
+  for (i=0; i<cookies.length; i++){
+    let parts = cookies[i].split('=')
+    let key = parts[0]
+    let value=parts[1]
+    hash[key]=value
+  }
+
+  let foundUser
+  for(let i=0; i<users.length; i++){
+    if(users[i].email === hash['sign_in_email']){
+      foundUser=users[i]
+      break;
+    }
+  }
+
+  if(foundUser){
+    string=string.replace('__password__',foundUser.password)
+    string=string.replace('__email__',foundUser.email)
+  }else{
+    string=string.replace('__password__','不知道')
+    string=string.replace('__email__','不知道')
+  }
+
   response.statusCode=200
   response.setHeader('Content-Type','text/html;charset=utf-8')
   response.write(string)
@@ -41,7 +77,7 @@ if(path === '/'){
       let parts=string.split('=') //['email',1]
       let key=parts[0]
       let value=parts[1];
-      hash[key]=value
+      hash[key]=decodeURIComponent(value)
     })
     // let email=hash['email']
     // let password=hash[password]
@@ -59,11 +95,123 @@ if(path === '/'){
       response.statusCode=400
       response.write('password not match')
     }else{
-      response.statusCode=200
+      var users = fs.readFileSync("./db/users")
+      try {
+        users =JSON.parse(users)
+      } catch (error) {
+        users =[];
+      }
+      let inUse = false;
+      for(let i=0; i<users.length;i++){
+        let user = users[i]
+        if(user.email === email){
+          inUse =true;
+          break;
+        }
+      }
+      if(inUse){
+        response.statusCode = 400 
+        response.setHeader('Content-Type','application/json;charset=utf8')
+        response.write(`{
+          "errors":{
+            "email":"exist"
+          }
+        }`)
+      }else{
+        users.push({"email":email,"password":password})
+        fs.writeFileSync('./db/users',JSON.stringify(users))
+        response.statusCode=200
+      }
+      
     }
     response.end()
   })
 }
+
+
+
+
+
+
+
+else if(path === '/sign_in' && method==='GET'){
+  let string = fs.readFileSync('./sign_in.html','utf8')
+  response.statusCode = 200
+  response.setHeader('Content-Type','text/html;charset=utf-8')
+  response.write(string)
+  response.end()
+}
+else if(path === '/sign_in' && method==='POST'){
+  readBody(request).then((body)=>{
+    let strings=body.split('&')  
+    let hash={}
+    strings.forEach((string)=>{
+      let parts=string.split('=') 
+      let key=parts[0]
+      let value=parts[1];
+      hash[key]=decodeURIComponent(value)
+    })
+
+    let {email, password}=hash
+
+    if(email.indexOf('@')=== -1){
+      response.statusCode=400
+      response.setHeader('Content-Type','application/json;charset=utf8')
+      response.write(`{
+        "errors":{
+          "email":"invalid"
+        }
+      }`)
+    }else{
+      var users = fs.readFileSync("./db/users")
+      try {
+        users =JSON.parse(users)
+      } catch (error) {
+        users =[];
+      }
+      let found=false;
+      for(let i=0; i<users.length;i++){
+        let user = users[i]
+        if(user.email === email && user.password === password){
+          response.statusCode=200
+          console.log("登录成功")
+          response.setHeader('Content-Type','application/html;charset=utf8')
+          // Set-Cookie: <cookie-name>=<cookie-value>
+          response.setHeader('Set-Cookie',`sign_in_email=${email}`)
+          response.write(`您好，你已登录成功`)
+          found='yes'
+          break;
+        }
+        else if(user.email === email && user.password !== password){
+          found =true;
+          break;
+        }
+      }
+      if(found === false){
+          response.statusCode = 400 
+          response.setHeader('Content-Type','application/json;charset=utf8')
+          response.write(`{
+            "errors":{
+              "email":"notExist"
+            }
+          }`)
+      }
+      if(found === true){
+        response.statusCode = 400 
+          response.setHeader('Content-Type','application/json;charset=utf8')
+          response.write(`{
+            "errors":{
+              "password":"incorrect"
+            }
+          }`)
+      }
+    }
+    response.end()
+  })
+
+}
+
+
 
 else if (path === '/main.js'){
   let string = fs.readFileSync('./main.js','utf8')
@@ -95,10 +243,11 @@ else if (path === '/main.js'){
 }else {
   response.statusCode = 404
   response.setHeader('Content-Type','text/html;charset=utf-8')
-  response.write(
+  response.write(`
     {
       "error": "not found"
     }
+    `
   )
   response.end()
 }

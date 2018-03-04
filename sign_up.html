@@ -90,15 +90,17 @@
             return 
         }
         $.post('/sign_up',hash)
-            .then(()=>{
-                console.log('response')
+            .then((request)=>{
+                window.location.href ='/sign_in'
             },(request)=>{
-                let {errors} = request.responseJSON
-                if(errors.email && errors.email === "invalid"){
+                let {errors} = request.responseJSON || ''
+                if(errors && errors.email && errors.email === "invalid"){
                     $form.find('[name="email"]').siblings('.error').text("邮箱格式错误")
+                }else if(errors && errors.email && errors.email === "exist"){
+                    $form.find('[name="email"]').siblings('.error').text("该邮箱已被注册")
                 }
+                console.log(request.responseText)
             })
-
     })
 </script>
 </body>
